@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KartTimer">
+<meta name="theme-color" content="#0f1115">
+<title>KartTimer</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#0f1115; --card:#181b22; --card2:#20242d; --line:#2b303b;
+  --txt:#eef0f4; --mut:#8b93a3; --acc:#ff5a1f; --ok:#22c55e; --best:#a855f7; --bad:#ef4444;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+body{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:rgba(15,17,21,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+header h1{font-size:19px;margin:0;font-weight:800;letter-spacing:.3px}
+header h1 span{color:var(--acc)}
+.flag{width:22px;height:22px;border-radius:4px;background:conic-gradient(#fff 25%,#000 0 50%,#fff 0 75%,#000 0) 0 0/11px 11px}
+.pill{margin-left:auto;font-size:12px;padding:4px 10px;border-radius:99px;background:var(--card2);color:var(--mut)}
+.pill.cloud{color:var(--ok)}
+main{padding:12px;max-width:820px;margin:0 auto}
+section{display:none}
+section.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--mut);margin:0 0 10px;font-weight:700}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{border:2px solid var(--line);background:var(--card2);color:var(--txt);border-radius:99px;padding:8px 14px;font-weight:600;font-size:15px}
+.chip.sel{border-color:var(--c,var(--acc));background:color-mix(in srgb,var(--c,var(--acc)) 22%,var(--card2))}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--c,var(--acc));margin-right:6px}
+input,select{font:inherit;color:var(--txt);background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%}
+input[type=range]{padding:0;accent-color:var(--acc)}
+input[type=color]{padding:2px;width:48px;height:44px}
+label.f{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
+button{font:inherit;font-weight:700;border:0;border-radius:12px;padding:12px 16px;background:var(--card2);color:var(--txt);cursor:pointer}
+button:disabled{opacity:.4}
+button.pri{background:var(--acc);color:#fff}
+button.ok{background:var(--ok);color:#06210f}
+button.bad{background:transparent;color:var(--bad);border:1px solid #4a2326}
+button.big{width:100%;padding:16px;font-size:18px}
+button.sm{padding:6px 10px;font-size:13px;border-radius:8px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.camwrap{position:relative;border-radius:12px;overflow:hidden;background:#000;min-height:120px}
+.camwrap video{display:block;width:100%;height:auto}
+.camwrap canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+.camph{aspect-ratio:16/9;display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:14px;text-align:center;padding:20px}
+.meter{height:8px;background:var(--card2);border-radius:99px;overflow:hidden;margin-top:10px;position:relative}
+.meter i{display:block;height:100%;width:0;background:var(--acc);transition:width .05s}
+.meter b{position:absolute;top:-3px;bottom:-3px;width:2px;background:#fff}
+.hint{font-size:13px;color:var(--mut);margin-top:6px}
+.timer{font-variant-numeric:tabular-nums;font-size:clamp(56px,18vw,110px);font-weight:800;text-align:center;letter-spacing:-2px;line-height:1.05;margin:4px 0}
+.status{text-align:center;color:var(--mut);font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:1px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;text-align:center}
+.stats div{background:var(--card2);border-radius:10px;padding:8px 4px}
+.stats small{display:block;color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.8px}
+.stats b{font-variant-numeric:tabular-nums;font-size:20px}
+.laps{list-style:none;margin:0;padding:0}
+.laps li{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.laps li:last-child{border-bottom:0}
+.laps .n{color:var(--mut);width:34px;font-size:14px}
+.laps .t{font-weight:700;font-size:18px;flex:1}
+.laps .d{font-size:14px;color:var(--mut)}
+.laps .d.neg{color:var(--ok)}
+.laps li.best .t{color:var(--best)}
+.laps li.inv{opacity:.4}.laps li.inv .t{text-decoration:line-through}
+.rank{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.rank:last-child{border-bottom:0}
+.rank .p{width:28px;height:28px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px}
+.rank .p.g1{background:#eab308;color:#2a1f00}.rank .p.g2{background:#cbd5e1;color:#111}.rank .p.g3{background:#c2763a;color:#fff}
+.rank .nm{flex:1;font-weight:600}
+.rank .nm small{display:block;color:var(--mut);font-weight:400;font-size:12px}
+.rank .tm{font-variant-numeric:tabular-nums;font-weight:800;font-size:18px}
+details.sess{background:var(--card2);border-radius:12px;margin-bottom:8px;padding:10px 12px}
+details.sess summary{list-style:none;cursor:pointer}
+details.sess summary::-webkit-details-marker{display:none}
+.sess .h{display:flex;justify-content:space-between;gap:8px;font-weight:700}
+.sess .s{color:var(--mut);font-size:13px}
+.empty{color:var(--mut);text-align:center;padding:18px 6px;font-size:14px}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;display:grid;grid-template-columns:repeat(5,1fr);background:rgba(15,17,21,.96);backdrop-filter:blur(10px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs button{background:none;border-radius:0;padding:9px 2px 8px;font-size:11px;font-weight:600;color:var(--mut);display:flex;flex-direction:column;align-items:center;gap:2px}
+nav.tabs button span{font-size:20px;line-height:1}
+nav.tabs button.on{color:var(--acc)}
+#toast{position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:#fff;color:#111;padding:10px 16px;border-radius:12px;font-weight:600;font-size:14px;opacity:0;transition:.25s;pointer-events:none;z-index:9;max-width:90vw;text-align:center}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.flashbest{animation:fb .8s}
+@keyframes fb{0%{background:var(--best)}100%{background:var(--card)}}
+.flashlap{animation:fl .5s}
+@keyframes fl{0%{background:#14532d}100%{background:var(--card)}}
+</style>
+</head>
+<body>
+<header>
+  <div class="flag"></div>
+  <h1>Kart<span>Timer</span></h1>
+  <div class="pill" id="mode">Lokal</div>
+</header>
+
+<main>
+<!-- ============ MESSEN ============ -->
+<section id="v-mess" class="on">
+  <div class="card" id="setupCard">
+    <h2>Fahrer</h2>
+    <div class="chips" id="driverChips"></div>
+    <label class="f">Strecke</label>
+    <input id="track" list="trackList" placeholder="z. B. Hof, Kartbahn Ellwangen …" autocomplete="off">
+    <datalist id="trackList"></datalist>
+    <label class="f">Startart</label>
+    <select id="startMode">
+      <option value="flying">Fliegend – erste Durchfahrt startet die Uhr</option>
+      <option value="standing">Stehend – Start per Taste</option>
+    </select>
+  </div>
+
+  <div class="card">
+    <h2>Kamera · Ziellinie</h2>
+    <div class="camwrap" id="camwrap">
+      <div class="camph" id="camph">Gerät stabil hinstellen, Kamera seitlich auf die Start-/Ziellinie richten.</div>
+      <video id="video" playsinline muted autoplay hidden></video>
+      <canvas id="overlay" hidden></canvas>
+    </div>
+    <div class="meter"><i id="meterBar"></i><b id="meterThr"></b></div>
+    <div class="hint" id="camHint">Mit dem Finger einen schmalen Streifen genau über die Linie ziehen.</div>
+    <div class="row" style="margin-top:10px">
+      <button id="btnCam" class="pri" style="flex:1">📷 Kamera starten</button>
+      <button id="btnLock" style="flex:1">🔓 Zone frei</button>
+    </div>
+  </div>
+
+  <div class="card" id="runCard">
+    <div class="status" id="runStatus">Bereit machen</div>
+    <div class="timer" id="timer">0,00</div>
+    <div class="stats">
+      <div><small>Runden</small><b id="stLaps">0</b></div>
+      <div><small>Letzte</small><b id="stLast">–</b></div>
+      <div><small>Beste</small><b id="stBest" style="color:var(--best)">–</b></div>
+    </div>
+    <div id="runBtns" style="margin-top:12px"></div>
+  </div>
+
+  <div class="card" id="lapCard" hidden>
+    <h2>Runden <span style="font-weight:400;text-transform:none;letter-spacing:0">· antippen = ungültig</span></h2>
+    <ul class="laps" id="lapList"></ul>
+  </div>
+</section>
+
+<!-- ============ BESTENLISTE ============ -->
+<section id="v-best">
+  <div class="card">
+    <h2>Strecke</h2>
+    <select id="bestTrack"></select>
+  </div>
+  <div class="card">
+    <h2>Bestzeit je Fahrer</h2>
+    <div id="bestDrivers"></div>
+  </div>
+  <div class="card">
+    <h2>Top 10 Runden</h2>
+    <div id="bestLaps"></div>
+  </div>
+</section>
+
+<!-- ============ VERLAUF ============ -->
+<section id="v-hist">
+  <div class="card">
+    <h2>Filter</h2>
+    <div class="grid2">
+      <select id="histDriver"></select>
+      <select id="histTrack"></select>
+    </div>
+  </div>
+  <div id="histList"></div>
+</section>
+
+<!-- ============ FAHRER ============ -->
+<section id="v-drv">
+  <div class="card">
+    <h2>Neuer Fahrer</h2>
+    <div class="row" style="flex-wrap:nowrap">
+      <input id="newName" placeholder="Name" autocomplete="off">
+      <input id="newColor" type="color" value="#ff5a1f">
+      <button class="pri" id="btnAddDrv">＋</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Fahrer</h2>
+    <div id="drvList"></div>
+  </div>
+</section>
+
+<!-- ============ EINSTELLUNGEN ============ -->
+<section id="v-set">
+  <div class="card">
+    <h2>Erkennung</h2>
+    <label class="f">Empfindlichkeit: <b id="lblSens"></b></label>
+    <input type="range" id="sSens" min="1" max="10" step="1">
+    <label class="f">Auslöse-Schwelle (Anteil der Zone): <b id="lblTrig"></b></label>
+    <input type="range" id="sTrig" min="5" max="70" step="1">
+    <label class="f">Mindest-Rundenzeit: <b id="lblMin"></b></label>
+    <input type="range" id="sMin" min="3" max="120" step="1">
+    <div class="hint">Durchfahrten schneller als die Mindest-Rundenzeit werden ignoriert (verhindert Doppelzählung).</div>
+    <label class="f">Kamera</label>
+    <select id="sFacing">
+      <option value="environment">Rückkamera</option>
+      <option value="user">Frontkamera</option>
+    </select>
+  </div>
+  <div class="card">
+    <h2>Rückmeldung</h2>
+    <label class="row" style="justify-content:space-between"><span>Piepton bei Runde</span><input type="checkbox" id="sBeep" style="width:auto"></label>
+    <label class="row" style="justify-content:space-between;margin-top:10px"><span>Rundenzeit ansagen</span><input type="checkbox" id="sSpeak" style="width:auto"></label>
+  </div>
+  <div class="card">
+    <h2>Daten</h2>
+    <div class="hint" id="dataInfo" style="margin:0 0 10px"></div>
+    <button id="btnCsv" style="width:100%">⬇︎ Alle Zeiten als CSV</button>
+  </div>
+</section>
+</main>
+
+<nav class="tabs">
+  <button data-v="mess" class="on"><span>⏱</span>Messen</button>
+  <button data-v="best"><span>🏆</span>Bestenliste</button>
+  <button data-v="hist"><span>📋</span>Verlauf</button>
+  <button data-v="drv"><span>👤</span>Fahrer</button>
+  <button data-v="set"><span>⚙︎</span>Einstellungen</button>
+</nav>
+<div id="toast"></div>
+
+<script>
+/* =========================================================
+   KONFIGURATION
+   Leer lassen  → Daten nur auf diesem Gerät (localStorage)
+   Ausfüllen    → gemeinsame Daten für die ganze Familie
+   ========================================================= */
+const CFG = {
+  SUPABASE_URL: '',        // z. B. 'https://xyzcompany.supabase.co'
+  SUPABASE_ANON_KEY: ''    // anon public key
+};
+
+/* ---------- Helfer ---------- */
+const $ = s => document.querySelector(s);
+const LS = {
+  get(k, d){ try{ const v = JSON.parse(localStorage.getItem(k)); return v ?? d; }catch{ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} }
+};
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() :
+  'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c==='x'?r:(r&3|8)).toString(16); }));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function fmt(ms){
+  if (ms == null || !isFinite(ms)) return '–';
+  ms = Math.max(0, Math.round(ms));
+  const m = Math.floor(ms/60000), s = Math.floor(ms%60000/1000), c = Math.floor(ms%1000/10);
+  return (m ? `${m}:${String(s).padStart(2,'0')}` : `${s}`) + ',' + String(c).padStart(2,'0');
+}
+function fmtDelta(ms){ if (ms == null) return ''; return (ms < 0 ? '−' : '+') + fmt(Math.abs(ms)); }
+const fmtDate = iso => new Date(iso).toLocaleString('de-DE', {weekday:'short', day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit'});
+let toastT;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('on'), 2400); }
+const PALETTE = ['#ff5a1f','#3b82f6','#22c55e','#eab308','#a855f7','#ec4899','#14b8a6','#f97316'];
+
+/* ---------- Einstellungen ---------- */
+const S = Object.assign({ sens:6, trig:20, minLap:8, facing:'environment', beep:true, speak:true, startMode:'flying', zoneLocked:false },
+                        LS.get('kt_settings', {}));
+const saveS = () => LS.set('kt_settings', S);
+let zone = LS.get('kt_zone', {x:.47, y:.08, w:.06, h:.84});
+
+/* ---------- Datenschicht ---------- */
+let sb = null;
+if (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase){
+  sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+}
+const DB = {
+  async drivers(){
+    if (!sb) return LS.get('kt_drivers', []);
+    try{
+      const {data, error} = await sb.from('kart_drivers').select('*').order('name');
+      if (error) throw error;
+      LS.set('kt_cache_drivers', data); return data;
+    }catch(e){ toast('Offline – Fahrer aus Zwischenspeicher'); return LS.get('kt_cache_drivers', []); }
+  },
+  async addDriver(name, color){
+    const d = {id:uuid(), name, color};
+    if (sb){ const {error} = await sb.from('kart_drivers').insert(d); if (error) throw error; }
+    else { const a = LS.get('kt_drivers', []); a.push(d); LS.set('kt_drivers', a); }
+    return d;
+  },
+  async delDriver(id){
+    if (sb){ const {error} = await sb.from('kart_drivers').delete().eq('id', id); if (error) throw error; }
+    else {
+      LS.set('kt_drivers', LS.get('kt_drivers', []).filter(d => d.id !== id));
+      LS.set('kt_sessions', LS.get('kt_sessions', []).filter(s => s.driver_id !== id));
+    }
+  },
+  async sessions(){
+    const pending = LS.get('kt_pending', []).map(p => ({...p.session, laps:p.laps, pending:true}));
+    if (!sb) return LS.get('kt_sessions', []);
+    try{
+      const {data, error} = await sb.from('kart_sessions').select('*, kart_laps(*)').order('started_at', {ascending:false});
+      if (error) throw error;
+      const list = data.map(s => { const laps = (s.kart_laps||[]).sort((a,b)=>a.lap_no-b.lap_no); delete s.kart_laps; return {...s, laps}; });
+      LS.set('kt_cache_sessions', list);
+      return [...pending, ...list];
+    }catch(e){ return [...pending, ...LS.get('kt_cache_sessions', [])]; }
+  },
+  async saveSession(session, laps){
+    if (!sb){ const a = LS.get('kt_sessions', []); a.unshift({...session, laps}); LS.set('kt_sessions', a); return 'local'; }
+    try{ await DB._push(session, laps); return 'cloud'; }
+    catch(e){ const p = LS.get('kt_pending', []); p.push({session, laps}); LS.set('kt_pending', p); return 'pending'; }
+  },
+  async _push(session, laps){
+    let r = await sb.from('kart_sessions').upsert(session); if (r.error) throw r.error;
+    r = await sb.from('kart_laps').upsert(laps); if (r.error) throw r.error;
+  },
+  async flushPending(){
+    if (!sb) return;
+    const p = LS.get('kt_pending', []); if (!p.length) return;
+    const rest = [];
+    for (const it of p){ try{ await DB._push(it.session, it.laps); }catch{ rest.push(it); } }
+    LS.set('kt_pending', rest);
+    if (rest.length < p.length){ toast(`${p.length-rest.length} Session(s) synchronisiert`); await reload(); }
+  },
+  async delSession(id){
+    LS.set('kt_pending', LS.get('kt_pending', []).filter(p => p.session.id !== id));
+    if (sb){ const {error} = await sb.from('kart_sessions').delete().eq('id', id); if (error) throw error; }
+    else LS.set('kt_sessions', LS.get('kt_sessions', []).filter(s => s.id !== id));
+  },
+  async setLapValid(sessId, lapId, valid){
+    const pend = LS.get('kt_pending', []);
+    const pi = pend.find(p => p.session.id === sessId);
+    if (pi){ const l = pi.laps.find(l => l.id === lapId); if (l) l.valid = valid; LS.set('kt_pending', pend); return; }
+    if (sb){ const {error} = await sb.from('kart_laps').update({valid}).eq('id', lapId); if (error) throw error; }
+    else {
+      const a = LS.get('kt_sessions', []); const s = a.find(s => s.id === sessId);
+      const l = s?.laps.find(l => l.id === lapId); if (l) l.valid = valid; LS.set('kt_sessions', a);
+    }
+  }
+};
+
+/* ---------- Zustand ---------- */
+let drivers = [], sessions = [];
+let selDriver = LS.get('kt_lastDriver', null);
+let run = null;   // aktive Messung
+
+const driverById = id => drivers.find(d => d.id === id);
+const bestOf = laps => { const v = laps.filter(l => l.valid !== false).map(l => l.lap_ms); return v.length ? Math.min(...v) : null; };
+
+async function reload(){
+  drivers = await DB.drivers();
+  sessions = await DB.sessions();
+  renderAll();
+}
+
+/* ---------- Navigation ---------- */
+document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === 'v-' + b.dataset.v));
+  window.scrollTo(0,0);
+  if (b.dataset.v === 'mess') requestAnimationFrame(sizeOverlay);
+});
+
+/* =========================================================
+   KAMERA + BEWEGUNGSERKENNUNG
+   ========================================================= */
+const video = $('#video'), overlay = $('#overlay'), octx = overlay.getContext('2d');
+const proc = document.createElement('canvas'), pctx = proc.getContext('2d', {willReadFrequently:true});
+let stream = null, bg = null, frac = 0, triggered = false, lastTrig = -1e9, flashUntil = 0, wakeLock = null;
+
+async function camStart(){
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio:false,
+      video:{ facingMode:{ideal:S.facing}, width:{ideal:1280}, height:{ideal:720}, frameRate:{ideal:60} }
+    });
+    video.srcObject = stream;
+    video.hidden = false; overlay.hidden = false; $('#camph').hidden = true;
+    await video.play();
+    bg = null;
+    sizeOverlay();
+    frameLoop();
+    try{ wakeLock = await navigator.wakeLock?.request('screen'); }catch{}
+  }catch(e){
+    stream = null;
+    toast('Kamera nicht verfügbar – Zugriff erlauben (HTTPS nötig)');
+  }
+  renderCamBtns();
+}
+function camStop(){
+  stream?.getTracks().forEach(t => t.stop()); stream = null;
+  video.srcObject = null; video.hidden = true; overlay.hidden = true; $('#camph').hidden = false;
+  try{ wakeLock?.release(); }catch{} wakeLock = null;
+  frac = 0; renderCamBtns();
+}
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible' && stream && (!wakeLock || wakeLock.released)){
+    try{ wakeLock = await navigator.wakeLock?.request('screen'); }catch{}
+  }
+});
+
+function frameLoop(){
+  if (!stream) return;
+  if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(now => { processFrame(now); frameLoop(); });
+  else requestAnimationFrame(now => { processFrame(now); frameLoop(); });
+}
+
+function processFrame(now){
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh || drag) return;
+  const sx = zone.x*vw, sy = zone.y*vh, sw = Math.max(2, zone.w*vw), sh = Math.max(2, zone.h*vh);
+  const scale = Math.min(1, 64 / Math.max(sw, sh));
+  const cw = Math.max(3, Math.round(sw*scale)), ch = Math.max(3, Math.round(sh*scale));
+  if (proc.width !== cw || proc.height !== ch){ proc.width = cw; proc.height = ch; bg = null; }
+  pctx.drawImage(video, sx, sy, sw, sh, 0, 0, cw, ch);
+  const d = pctx.getImageData(0, 0, cw, ch).data, n = cw*ch;
+  const lum = new Float32Array(n);
+  let mL = 0;
+  for (let i=0, j=0; i<n; i++, j+=4){ lum[i] = .299*d[j] + .587*d[j+1] + .114*d[j+2]; mL += lum[i]; }
+  if (!bg){ bg = lum; return; }
+  let mB = 0; for (let i=0; i<n; i++) mB += bg[i];
+  const shift = (mL - mB) / n;                // globale Helligkeitsänderung (Wolken) herausrechnen
+  const thr = 70 - S.sens*6;                  // Pixel-Schwelle
+  let cnt = 0;
+  for (let i=0; i<n; i++) if (Math.abs(lum[i] - bg[i] - shift) > thr) cnt++;
+  frac = cnt / n;
+  const trig = S.trig / 100;
+  const a = frac < trig*0.5 ? 0.08 : 0.004;   // Hintergrund nachführen
+  for (let i=0; i<n; i++) bg[i] += (lum[i] - bg[i]) * a;
+
+  if (!triggered && frac >= trig && now - lastTrig > 700){
+    triggered = true; lastTrig = now; onCross(now, false);
+  } else if (triggered && frac < trig*0.5){
+    triggered = false;
+  }
+}
+
+/* Overlay / Zone zeichnen */
+function sizeOverlay(){
+  const r = video.getBoundingClientRect(); const dpr = window.devicePixelRatio || 1;
+  overlay.width = Math.max(1, Math.round(r.width*dpr)); overlay.height = Math.max(1, Math.round(r.height*dpr));
+}
+window.addEventListener('resize', sizeOverlay);
+video.addEventListener('loadedmetadata', sizeOverlay);
+
+function drawOverlay(){
+  if (overlay.hidden) return;
+  const W = overlay.width, H = overlay.height;
+  if (!W || !H) return;
+  octx.clearRect(0, 0, W, H);
+  const x = zone.x*W, y = zone.y*H, w = zone.w*W, h = zone.h*H;
+  const flash = performance.now() < flashUntil;
+  octx.fillStyle = flash ? 'rgba(34,197,94,.55)' : `rgba(255,90,31,${Math.min(.5, .08 + frac)})`;
+  octx.fillRect(x, y, w, h);
+  octx.lineWidth = 3 * (window.devicePixelRatio||1);
+  octx.strokeStyle = flash ? '#22c55e' : (zoneLocked() ? '#ffffff' : '#ff5a1f');
+  octx.setLineDash(zoneLocked() ? [] : [10, 8]);
+  octx.strokeRect(x, y, w, h);
+  octx.setLineDash([]);
+}
+
+/* Zone mit Finger aufziehen */
+let drag = null;
+const zoneLocked = () => S.zoneLocked || !!run;
+function relPos(e){ const r = overlay.getBoundingClientRect(); return { x:Math.min(1, Math.max(0, (e.clientX-r.left)/r.width)), y:Math.min(1, Math.max(0, (e.clientY-r.top)/r.height)) }; }
+overlay.addEventListener('pointerdown', e => {
+  if (zoneLocked()){ toast(run ? 'Während der Messung gesperrt' : 'Zone ist gesperrt 🔒'); return; }
+  const p = relPos(e); drag = {x0:p.x, y0:p.y, prev:{...zone}};
+  overlay.setPointerCapture(e.pointerId); e.preventDefault();
+});
+overlay.addEventListener('pointermove', e => {
+  if (!drag) return; const p = relPos(e);
+  zone = { x:Math.min(drag.x0, p.x), y:Math.min(drag.y0, p.y), w:Math.abs(p.x-drag.x0), h:Math.abs(p.y-drag.y0) };
+});
+const endDrag = () => {
+  if (!drag) return;
+  if (zone.w < .015 || zone.h < .015) zone = drag.prev;
+  drag = null; bg = null; LS.set('kt_zone', zone);
+};
+overlay.addEventListener('pointerup', endDrag);
+overlay.addEventListener('pointercancel', endDrag);
+
+/* =========================================================
+   MESSUNG
+   ========================================================= */
+let actx = null;
+function beep(freq=1200, dur=.09, delay=0){
+  if (!S.beep || !actx) return;
+  const t = actx.currentTime + delay, o = actx.createOscillator(), g = actx.createGain();
+  o.frequency.value = freq; o.type = 'square';
+  g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(.25, t+.01); g.gain.exponentialRampToValueAtTime(.0001, t+dur);
+  o.connect(g).connect(actx.destination); o.start(t); o.stop(t+dur+.02);
+}
+function speak(txt){
+  if (!S.speak || !window.speechSynthesis) return;
+  try{ speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(txt); u.lang = 'de-DE'; u.rate = 1.1; speechSynthesis.speak(u); }catch{}
+}
+function sayTime(ms){
+  const m = Math.floor(ms/60000), rest = fmt(ms % 60000);
+  return (m ? `${m} Minute${m>1?'n':''} ` : '') + rest;
+}
+
+function startRun(){
+  if (!selDriver || !driverById(selDriver)){ toast('Bitte zuerst Fahrer wählen'); return; }
+  if (!actx){ try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch{} }
+  actx?.resume?.();
+  if (S.speak && window.speechSynthesis){ try{ const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); }catch{} }
+  run = { driverId:selDriver, track:$('#track').value.trim(), mode:S.startMode,
+          startedAt:new Date().toISOString(), startT:null, lastT:null, laps:[] };
+  persistRun();
+  if (!stream && S.startMode === 'flying') toast('Kamera ist aus – Runden per Taste erfassen');
+  renderRun();
+}
+
+function onCross(t, manual){
+  flashUntil = performance.now() + 300;
+  if (!run) return;
+  if (run.startT == null){
+    if (run.mode === 'standing' && !manual) return;
+    run.startT = run.lastT = t;
+    beep(880, .12);
+    renderRun(); return;
+  }
+  const ms = t - run.lastT;
+  if (ms < S.minLap*1000) return;
+  run.lastT = t;
+  const prevBest = bestOf(run.laps);
+  const lap = { id:uuid(), lap_no:run.laps.length+1, lap_ms:Math.round(ms), valid:true };
+  run.laps.push(lap);
+  const isBest = prevBest == null || lap.lap_ms < prevBest;
+  if (isBest && prevBest != null){ beep(1400,.08); beep(1800,.12,.12); } else beep(1200,.09);
+  speak(sayTime(lap.lap_ms) + (isBest && prevBest != null ? ', Bestzeit' : ''));
+  navigator.vibrate?.(isBest ? [60,40,60] : 60);
+  const rc = $('#runCard'); rc.classList.remove('flashbest','flashlap'); void rc.offsetWidth;
+  rc.classList.add(isBest && prevBest != null ? 'flashbest' : 'flashlap');
+  persistRun(); renderRun();
+}
+const manualLap = () => onCross(performance.now(), true);
+
+function persistRun(){
+  if (!run) { LS.set('kt_activeRun', null); return; }
+  LS.set('kt_activeRun', { driverId:run.driverId, track:run.track, startedAt:run.startedAt, laps:run.laps });
+}
+
+async function finishRun(save){
+  if (!run) return;
+  const r = run;
+  if (save && r.laps.length){
+    if (!r.laps.some(l => l.valid)) { if (!confirm('Alle Runden sind ungültig. Trotzdem speichern?')) return; }
+    const session = { id:uuid(), driver_id:r.driverId, track:r.track || null, started_at:r.startedAt };
+    const laps = r.laps.map(l => ({ id:l.id, session_id:session.id, lap_no:l.lap_no, lap_ms:l.lap_ms, valid:l.valid }));
+    const res = await DB.saveSession(session, laps);
+    toast(res === 'pending' ? 'Offline gespeichert – wird später synchronisiert' : `Gespeichert: ${laps.length} Runde(n), Beste ${fmt(bestOf(laps))}`);
+  } else if (save){
+    toast('Keine Runden – nichts gespeichert');
+  } else {
+    if (r.laps.length && !confirm(`${r.laps.length} Runde(n) verwerfen?`)) return;
+  }
+  run = null; persistRun();
+  renderRun();
+  await reload();
+}
+
+async function recoverRun(){
+  const a = LS.get('kt_activeRun', null);
+  if (!a || !a.laps?.length) { LS.set('kt_activeRun', null); return; }
+  const d = driverById(a.driverId);
+  if (confirm(`Nicht gespeicherte Messung gefunden (${d?.name || 'Fahrer'}, ${a.laps.length} Runden). Jetzt speichern?`)){
+    const session = { id:uuid(), driver_id:a.driverId, track:a.track || null, started_at:a.startedAt };
+    const laps = a.laps.map(l => ({ id:l.id, session_id:session.id, lap_no:l.lap_no, lap_ms:l.lap_ms, valid:l.valid }));
+    await DB.saveSession(session, laps); toast('Wiederhergestellt');
+  }
+  LS.set('kt_activeRun', null);
+  await reload();
+}
+
+/* =========================================================
+   RENDERING
+   ========================================================= */
+function renderAll(){
+  renderMode(); renderChips(); renderTracks(); renderRun(); renderBest(); renderHist(); renderDrivers(); renderSettings();
+}
+function renderMode(){
+  const p = LS.get('kt_pending', []).length;
+  const m = $('#mode');
+  m.className = 'pill' + (sb ? ' cloud' : '');
+  m.textContent = sb ? (p ? `☁︎ ${p} ausstehend` : '☁︎ Familie') : 'Nur dieses Gerät';
+}
+function renderChips(){
+  const box = $('#driverChips');
+  if (!drivers.length){ box.innerHTML = `<div class="empty" style="padding:4px 0">Noch keine Fahrer – unter „Fahrer" anlegen.</div>`; return; }
+  box.innerHTML = drivers.map(d => `<button class="chip ${d.id===selDriver?'sel':''}" style="--c:${esc(d.color)}" data-id="${d.id}"><span class="dot"></span>${esc(d.name)}</button>`).join('');
+  box.querySelectorAll('.chip').forEach(b => b.onclick = () => {
+    if (run){ toast('Erst Messung beenden'); return; }
+    selDriver = b.dataset.id; LS.set('kt_lastDriver', selDriver); renderChips(); renderRun();
+  });
+}
+function allTracks(){ return [...new Set(sessions.map(s => s.track).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'de')); }
+function renderTracks(){
+  const t = allTracks();
+  $('#trackList').innerHTML = t.map(x => `<option value="${esc(x)}">`).join('');
+  if (!$('#track').value && LS.get('kt_lastTrack','')) $('#track').value = LS.get('kt_lastTrack','');
+  for (const id of ['#bestTrack', '#histTrack']){
+    const sel = $(id), cur = sel.value;
+    sel.innerHTML = `<option value="">Alle Strecken</option>` + t.map(x => `<option ${x===cur?'selected':''}>${esc(x)}</option>`).join('');
+  }
+  const hd = $('#histDriver'), cur = hd.value;
+  hd.innerHTML = `<option value="">Alle Fahrer</option>` + drivers.map(d => `<option value="${d.id}" ${d.id===cur?'selected':''}>${esc(d.name)}</option>`).join('');
+}
+$('#track').addEventListener('change', e => LS.set('kt_lastTrack', e.target.value.trim()));
+
+function renderCamBtns(){
+  $('#btnCam').textContent = stream ? '⏹ Kamera aus' : '📷 Kamera starten';
+  $('#btnCam').className = stream ? '' : 'pri';
+  $('#btnLock').textContent = S.zoneLocked ? '🔒 Zone gesperrt' : '🔓 Zone frei';
+  $('#meterThr').style.left = S.trig + '%';
+}
+$('#btnCam').onclick = () => stream ? camStop() : camStart();
+$('#btnLock').onclick = () => { S.zoneLocked = !S.zoneLocked; saveS(); renderCamBtns(); };
+
+function renderRun(){
+  const btns = $('#runBtns'), st = $('#runStatus');
+  $('#setupCard').style.opacity = run ? .55 : 1;
+  $('#track').disabled = $('#startMode').disabled = !!run;
+  if (!run){
+    const d = driverById(selDriver);
+    st.textContent = d ? `${d.name} · bereit machen` : 'Fahrer wählen';
+    btns.innerHTML = `<button class="pri big" id="bStart" ${d?'':'disabled'}>🏁 Bereit${d?' – '+esc(d.name):''}</button>`;
+    $('#bStart').onclick = startRun;
+    $('#timer').textContent = '0,00';
+    $('#stLaps').textContent = '0'; $('#stLast').textContent = '–'; $('#stBest').textContent = '–';
+    $('#lapCard').hidden = true;
+    return;
+  }
+  const d = driverById(run.driverId);
+  if (run.startT == null){
+    st.textContent = run.mode === 'standing' ? `${d?.name} · auf Start-Taste warten` : `${d?.name} · warte auf erste Durchfahrt`;
+    btns.innerHTML = (run.mode === 'standing'
+        ? `<button class="ok big" id="bGo">▶︎ START</button>`
+        : `<button class="big" id="bGo">▶︎ Jetzt manuell starten</button>`) +
+      `<div class="grid2" style="margin-top:8px"><button class="bad" id="bDiscard">Abbrechen</button><span></span></div>`;
+    $('#bGo').onclick = manualLap;
+  } else {
+    st.textContent = `${d?.name} · läuft`;
+    btns.innerHTML = `<button class="big" id="bLap">⏱ Runde manuell</button>
+      <div class="grid2" style="margin-top:8px"><button class="bad" id="bDiscard">Verwerfen</button><button class="ok" id="bSave">✓ Stopp & Speichern</button></div>`;
+    $('#bLap').onclick = manualLap;
+    $('#bSave').onclick = () => finishRun(true);
+  }
+  $('#bDiscard').onclick = () => finishRun(false);
+
+  const laps = run.laps, best = bestOf(laps);
+  $('#stLaps').textContent = laps.length;
+  $('#stLast').textContent = laps.length ? fmt(laps.at(-1).lap_ms) : '–';
+  $('#stBest').textContent = fmt(best);
+  $('#lapCard').hidden = !laps.length;
+  $('#lapList').innerHTML = [...laps].reverse().map(l => {
+    const isB = l.valid && l.lap_ms === best;
+    const delta = best != null && l.valid && !isB ? fmtDelta(l.lap_ms - best) : (isB ? 'Bestzeit' : '');
+    return `<li class="${isB?'best':''} ${l.valid?'':'inv'}" data-id="${l.id}"><span class="n">R${l.lap_no}</span><span class="t">${fmt(l.lap_ms)}</span><span class="d">${delta}</span></li>`;
+  }).join('');
+  $('#lapList').querySelectorAll('li').forEach(li => li.onclick = () => {
+    const l = run.laps.find(x => x.id === li.dataset.id); l.valid = !l.valid; persistRun(); renderRun();
+  });
+}
+
+function renderBest(){
+  const tr = $('#bestTrack').value;
+  const ss = sessions.filter(s => !tr || s.track === tr);
+  const all = [];
+  for (const s of ss) for (const l of s.laps) if (l.valid !== false) all.push({...l, driver_id:s.driver_id, track:s.track, date:s.started_at});
+  const per = {};
+  for (const l of all){
+    const p = per[l.driver_id] ||= {best:null, n:0};
+    p.n++; if (!p.best || l.lap_ms < p.best.lap_ms) p.best = l;
+  }
+  const rows = Object.entries(per).filter(([id]) => driverById(id)).sort((a,b) => a[1].best.lap_ms - b[1].best.lap_ms);
+  const top = rows[0]?.[1].best.lap_ms;
+  $('#bestDrivers').innerHTML = rows.length ? rows.map(([id,p],i) => {
+    const d = driverById(id);
+    return `<div class="rank"><div class="p ${i<3?'g'+(i+1):''}">${i+1}</div>
+      <div class="nm"><span class="dot" style="--c:${esc(d.color)}"></span>${esc(d.name)}<small>${p.n} Runden · ${new Date(p.best.date).toLocaleDateString('de-DE')}${!tr && p.best.track ? ' · '+esc(p.best.track) : ''}</small></div>
+      <div class="tm">${fmt(p.best.lap_ms)}${i ? `<div class="hint" style="margin:0;text-align:right">${fmtDelta(p.best.lap_ms-top)}</div>` : ''}</div></div>`;
+  }).join('') : `<div class="empty">Noch keine Zeiten.</div>`;
+  const t10 = all.filter(l => driverById(l.driver_id)).sort((a,b) => a.lap_ms - b.lap_ms).slice(0,10);
+  $('#bestLaps').innerHTML = t10.length ? t10.map((l,i) => {
+    const d = driverById(l.driver_id);
+    return `<div class="rank"><div class="p ${i<3?'g'+(i+1):''}">${i+1}</div>
+      <div class="nm"><span class="dot" style="--c:${esc(d.color)}"></span>${esc(d.name)}<small>${fmtDate(l.date)}${!tr && l.track ? ' · '+esc(l.track) : ''}</small></div>
+      <div class="tm">${fmt(l.lap_ms)}</div></div>`;
+  }).join('') : `<div class="empty">Noch keine Zeiten.</div>`;
+}
+$('#bestTrack').onchange = renderBest;
+
+function renderHist(){
+  const dr = $('#histDriver').value, tr = $('#histTrack').value;
+  const ss = sessions.filter(s => (!dr || s.driver_id === dr) && (!tr || s.track === tr));
+  $('#histList').innerHTML = ss.length ? ss.map(s => {
+    const d = driverById(s.driver_id), best = bestOf(s.laps);
+    const valid = s.laps.filter(l => l.valid !== false);
+    const avg = valid.length ? valid.reduce((a,l) => a + l.lap_ms, 0) / valid.length : null;
+    return `<details class="sess" data-id="${s.id}">
+      <summary><div class="h"><span><span class="dot" style="--c:${esc(d?.color||'#888')}"></span>${esc(d?.name||'?')}${s.pending?' ⏳':''}</span><span style="color:var(--best)">${fmt(best)}</span></div>
+      <div class="s">${fmtDate(s.started_at)}${s.track?' · '+esc(s.track):''} · ${s.laps.length} Runden · Ø ${fmt(avg)}</div></summary>
+      <ul class="laps" style="margin-top:6px">${s.laps.map(l => {
+        const isB = l.valid !== false && l.lap_ms === best;
+        return `<li class="${isB?'best':''} ${l.valid===false?'inv':''}" data-lap="${l.id}"><span class="n">R${l.lap_no}</span><span class="t">${fmt(l.lap_ms)}</span><span class="d">${isB?'Bestzeit':(l.valid!==false && best!=null ? fmtDelta(l.lap_ms-best) : 'ungültig')}</span></li>`;
+      }).join('')}</ul>
+      <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="bad sm" data-del="${s.id}">Session löschen</button></div>
+    </details>`;
+  }).join('') : `<div class="card empty">Noch keine Sessions.</div>`;
+  $('#histList').querySelectorAll('details').forEach(det => {
+    const sid = det.dataset.id;
+    det.querySelectorAll('li[data-lap]').forEach(li => li.onclick = async () => {
+      const s = sessions.find(x => x.id === sid), l = s.laps.find(x => x.id === li.dataset.lap);
+      try{ await DB.setLapValid(sid, l.id, l.valid === false); l.valid = l.valid === false; renderHist(); det.open = true; renderBestKeepOpen(sid); }
+      catch{ toast('Änderung fehlgeschlagen'); }
+    });
+    det.querySelector('[data-del]').onclick = async () => {
+      if (!confirm('Session wirklich löschen?')) return;
+      try{ await DB.delSession(sid); toast('Gelöscht'); await reload(); }catch{ toast('Löschen fehlgeschlagen'); }
+    };
+  });
+}
+function renderBestKeepOpen(sid){ renderBest(); const det = document.querySelector(`details[data-id="${sid}"]`); if (det) det.open = true; }
+$('#histDriver').onchange = renderHist;
+$('#histTrack').onchange = renderHist;
+
+function renderDrivers(){
+  $('#newColor').value = PALETTE[drivers.length % PALETTE.length];
+  $('#drvList').innerHTML = drivers.length ? drivers.map(d => {
+    const n = sessions.filter(s => s.driver_id === d.id).length;
+    return `<div class="rank"><div class="p" style="background:${esc(d.color)}"></div>
+      <div class="nm">${esc(d.name)}<small>${n} Session(s)</small></div>
+      <button class="bad sm" data-id="${d.id}">Löschen</button></div>`;
+  }).join('') : `<div class="empty">Noch keine Fahrer.</div>`;
+  $('#drvList').querySelectorAll('button').forEach(b => b.onclick = async () => {
+    const d = driverById(b.dataset.id);
+    if (!confirm(`${d.name} inkl. aller Zeiten löschen?`)) return;
+    try{ await DB.delDriver(d.id); if (selDriver === d.id) selDriver = null; await reload(); }catch{ toast('Löschen fehlgeschlagen'); }
+  });
+}
+async function addDriver(){
+  const name = $('#newName').value.trim(); if (!name) return;
+  try{
+    const d = await DB.addDriver(name, $('#newColor').value);
+    $('#newName').value = '';
+    if (!selDriver) { selDriver = d.id; LS.set('kt_lastDriver', d.id); }
+    toast(`${name} angelegt`); await reload();
+  }catch(e){ toast('Speichern fehlgeschlagen'); }
+}
+$('#btnAddDrv').onclick = addDriver;
+$('#newName').addEventListener('keydown', e => { if (e.key === 'Enter') addDriver(); });
+
+/* Einstellungen */
+function renderSettings(){
+  $('#sSens').value = S.sens; $('#lblSens').textContent = S.sens + ' / 10';
+  $('#sTrig').value = S.trig; $('#lblTrig').textContent = S.trig + ' %';
+  $('#sMin').value = S.minLap; $('#lblMin').textContent = S.minLap + ' s';
+  $('#sFacing').value = S.facing; $('#sBeep').checked = S.beep; $('#sSpeak').checked = S.speak;
+  $('#startMode').value = S.startMode;
+  $('#dataInfo').textContent = sb
+    ? 'Gemeinsame Datenbank aktiv – alle Familiengeräte sehen dieselben Fahrer und Zeiten.'
+    : 'Daten liegen nur auf diesem Gerät. Für die ganze Familie Supabase in der Datei eintragen.';
+  renderCamBtns();
+}
+$('#sSens').oninput = e => { S.sens = +e.target.value; saveS(); renderSettings(); };
+$('#sTrig').oninput = e => { S.trig = +e.target.value; saveS(); renderSettings(); };
+$('#sMin').oninput  = e => { S.minLap = +e.target.value; saveS(); renderSettings(); };
+$('#sFacing').onchange = e => { S.facing = e.target.value; saveS(); if (stream){ camStop(); camStart(); } };
+$('#sBeep').onchange  = e => { S.beep = e.target.checked; saveS(); };
+$('#sSpeak').onchange = e => { S.speak = e.target.checked; saveS(); };
+$('#startMode').onchange = e => { S.startMode = e.target.value; saveS(); };
+
+$('#btnCsv').onclick = () => {
+  const rows = [['Datum','Fahrer','Strecke','Runde','Zeit (ms)','Zeit','Gültig']];
+  for (const s of sessions) for (const l of s.laps)
+    rows.push([new Date(s.started_at).toLocaleString('de-DE'), driverById(s.driver_id)?.name || '', s.track || '', l.lap_no, l.lap_ms, fmt(l.lap_ms), l.valid === false ? 'nein' : 'ja']);
+  const csv = '﻿' + rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+  a.download = `karttimer_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+};
+
+/* ---------- UI-Schleife: Uhr + Overlay + Meter ---------- */
+function uiLoop(){
+  if (run && run.startT != null) $('#timer').textContent = fmt(performance.now() - run.lastT);
+  $('#meterBar').style.width = Math.min(100, frac*100) + '%';
+  $('#meterBar').style.background = performance.now() < flashUntil ? 'var(--ok)' : 'var(--acc)';
+  drawOverlay();
+  requestAnimationFrame(uiLoop);
+}
+
+/* ---------- Start ---------- */
+window.addEventListener('online', () => DB.flushPending().then(renderMode));
+(async () => {
+  renderSettings();
+  await reload();
+  await recoverRun();
+  DB.flushPending().then(renderMode);
+  uiLoop();
+})();
+</script>
+</body>
+</html>

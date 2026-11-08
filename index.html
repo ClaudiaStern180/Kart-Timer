@@ -262,7 +262,7 @@ function fmt(ms){
 function fmtDelta(ms){ if (ms == null) return ''; return (ms < 0 ? '−' : '+') + fmt(Math.abs(ms)); }
 const fmtDate = iso => new Date(iso).toLocaleString('de-DE', {weekday:'short', day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit'});
 let toastT;
-function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('on'), 2400); }
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('on'), msg.length > 40 ? 6000 : 2400); }
 const PALETTE = ['#ff5a1f','#3b82f6','#22c55e','#eab308','#a855f7','#ec4899','#14b8a6','#f97316'];
 
 /* ---------- Einstellungen ---------- */
@@ -283,7 +283,7 @@ const DB = {
       const {data, error} = await sb.from('kart_drivers').select('*').order('name');
       if (error) throw error;
       LS.set('kt_cache_drivers', data); return data;
-    }catch(e){ toast('Offline – Fahrer aus Zwischenspeicher'); return LS.get('kt_cache_drivers', []); }
+    }catch(e){ toast('Datenbank-Fehler: ' + (e?.message || e)); return LS.get('kt_cache_drivers', []); }
   },
   async addDriver(name, color){
     const d = {id:uuid(), name, color};
@@ -751,7 +751,7 @@ async function addDriver(){
     $('#newName').value = '';
     if (!selDriver) { selDriver = d.id; LS.set('kt_lastDriver', d.id); }
     toast(`${name} angelegt`); await reload();
-  }catch(e){ toast('Speichern fehlgeschlagen'); }
+  }catch(e){ toast('Speichern fehlgeschlagen: ' + (e?.message || e)); console.error(e); }
 }
 $('#btnAddDrv').onclick = addDriver;
 $('#newName').addEventListener('keydown', e => { if (e.key === 'Enter') addDriver(); });

@@ -312,7 +312,8 @@ const DB = {
   async saveSession(session, laps){
     if (!sb){ const a = LS.get('kt_sessions', []); a.unshift({...session, laps}); LS.set('kt_sessions', a); return 'local'; }
     try{ await DB._push(session, laps); return 'cloud'; }
-    catch(e){ const p = LS.get('kt_pending', []); p.push({session, laps}); LS.set('kt_pending', p); return 'pending'; }
+    catch(e){ console.error(e); DB.lastError = e?.message || String(e);
+      const p = LS.get('kt_pending', []); p.push({session, laps}); LS.set('kt_pending', p); return 'pending'; }
   },
   async _push(session, laps){
     let r = await sb.from('kart_sessions').upsert(session); if (r.error) throw r.error;
@@ -322,7 +323,7 @@ const DB = {
     if (!sb) return;
     const p = LS.get('kt_pending', []); if (!p.length) return;
     const rest = [];
-    for (const it of p){ try{ await DB._push(it.session, it.laps); }catch{ rest.push(it); } }
+    for (const it of p){ try{ await DB._push(it.session, it.laps); }catch(e){ DB.lastError = e?.message; rest.push(it); } }
     LS.set('kt_pending', rest);
     if (rest.length < p.length){ toast(`${p.length-rest.length} Session(s) synchronisiert`); await reload(); }
   },
@@ -395,7 +396,7 @@ function camStop(){
   stream?.getTracks().forEach(t => t.stop()); stream = null;
   video.srcObject = null; video.hidden = true; overlay.hidden = true; $('#camph').hidden = false;
   try{ wakeLock?.release(); }catch{} wakeLock = null;
-  frac = 0; renderCamBtns();
+  frac = 0; $('#camHint').textContent = 'Mit dem Finger einen schmalen Streifen genau über die Linie ziehen.'; renderCamBtns();
 }
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible' && stream && (!wakeLock || wakeLock.released)){
@@ -403,10 +404,29 @@ document.addEventListener('visibilitychange', async () => {
   }
 });
 
+let loopId = 0, lastFrameAt = 0, fpsCnt = 0, fps = 0, fpsT = 0;
 function frameLoop(){
+  const id = ++loopId;
+  const step = now => {
+    if (!stream || id !== loopId) return;
+    lastFrameAt = performance.now(); fpsCnt++;
+    try{ processFrame(now); }catch(e){ console.error(e); }
+    schedule();
+  };
+  const schedule = () => video.requestVideoFrameCallback ? video.requestVideoFrameCallback(step) : requestAnimationFrame(step);
+  schedule();
+}
+/* iOS pausiert das Kamerabild bei Ton/Sprachausgabe → automatisch fortsetzen */
+video.addEventListener('pause', () => { if (stream) video.play().catch(()=>{}); });
+function camWatchdog(){
   if (!stream) return;
-  if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(now => { processFrame(now); frameLoop(); });
-  else requestAnimationFrame(now => { processFrame(now); frameLoop(); });
+  const t = performance.now();
+  if (video.paused) video.play().catch(()=>{});
+  if (t - lastFrameAt > 1200){ lastFrameAt = t; frameLoop(); }
+  if (t - fpsT > 1000){ fps = fpsCnt; fpsCnt = 0; fpsT = t;
+    $('#camHint').textContent = zoneLocked() ? `Erkennung aktiv · ${fps} Bilder/s` : `Streifen über die Linie ziehen · ${fps} Bilder/s`; }
+  const tr = stream.getVideoTracks()[0];
+  if (tr && tr.readyState === 'ended'){ camStop(); toast('Kamera wurde beendet – bitte neu starten'); }
 }
 
 function processFrame(now){
@@ -508,7 +528,6 @@ function startRun(){
   if (!selDriver || !driverById(selDriver)){ toast('Bitte zuerst Fahrer wählen'); return; }
   if (!actx){ try{ actx = new (window.AudioContext||window.webkitAudioContext)(); }catch{} }
   actx?.resume?.();
-  if (S.speak && window.speechSynthesis){ try{ const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); }catch{} }
   run = { driverId:selDriver, track:$('#track').value.trim(), mode:S.startMode,
           startedAt:new Date().toISOString(), startT:null, lastT:null, laps:[] };
   persistRun();
@@ -554,9 +573,9 @@ async function finishRun(save){
     const session = { id:uuid(), driver_id:r.driverId, track:r.track || null, started_at:r.startedAt };
     const laps = r.laps.map(l => ({ id:l.id, session_id:session.id, lap_no:l.lap_no, lap_ms:l.lap_ms, valid:l.valid }));
     const res = await DB.saveSession(session, laps);
-    toast(res === 'pending' ? 'Offline gespeichert – wird später synchronisiert' : `Gespeichert: ${laps.length} Runde(n), Beste ${fmt(bestOf(laps))}`);
+    toast(res === 'pending' ? 'Lokal gespeichert, Cloud-Fehler: ' + DB.lastError : `Gespeichert: ${laps.length} Runde(n), Beste ${fmt(bestOf(laps))}`);
   } else if (save){
-    toast('Keine Runden – nichts gespeichert');
+    toast('Noch keine Runde erfasst – erst nach der ersten vollen Runde wird gespeichert');
   } else {
     if (r.laps.length && !confirm(`${r.laps.length} Runde(n) verwerfen?`)) return;
   }
@@ -793,6 +812,7 @@ function uiLoop(){
   $('#meterBar').style.width = Math.min(100, frac*100) + '%';
   $('#meterBar').style.background = performance.now() < flashUntil ? 'var(--ok)' : 'var(--acc)';
   drawOverlay();
+  camWatchdog();
   requestAnimationFrame(uiLoop);
 }
 
